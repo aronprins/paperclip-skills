@@ -11,6 +11,7 @@ Each skill in this repo is a complete, self-contained procedure an agent can pic
 - [What's in this repo](#whats-in-this-repo)
 - [Available skills](#available-skills)
 - [Repository layout](#repository-layout)
+- [Download a skill](#download-a-skill)
 - [Using a skill](#using-a-skill)
 - [How this relates to the articles](#how-this-relates-to-the-articles)
 - [License](#license)
@@ -84,6 +85,12 @@ paperclip-skills/
         ├── ticket-template.md            # exact ticket format + de-dupe search
         └── run-summary-template.md       # recurrence/aging notation + summary
 ```
+
+## Download a skill
+
+Every skill is also published as a standalone zip on the [Releases](https://github.com/aronprins/paperclip-skills/releases) page — **one release per skill**, refreshed automatically whenever that skill changes. Grab `<skill>.zip`, unzip it, and point your agent at the `SKILL.md` inside (see [Using a skill](#using-a-skill)).
+
+Prefer the source? Cloning the repo gives you every skill at once; the per-skill zips just make it easy to hand an agent exactly one.
 
 ## Using a skill
 

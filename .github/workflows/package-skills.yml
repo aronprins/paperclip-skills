@@ -1,0 +1,106 @@
+name: Package skills
+
+# Publishes one GitHub Release per skill, each with the skill packaged as a
+# downloadable <skill>.zip. A "skill" is any top-level folder containing a
+# SKILL.md. Releases are rolling: a skill's release/tag is refreshed in place
+# whenever that skill changes, so the Releases page stays one-entry-per-skill.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      all:
+        description: "Repackage every skill (ignore change detection)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-skills
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package and release skills
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          FORCE_ALL: ${{ github.event.inputs.all }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Discover skills: top-level folders that contain a SKILL.md.
+          mapfile -t skills < <(for d in */; do [ -f "${d}SKILL.md" ] && echo "${d%/}"; done | sort)
+          if [ "${#skills[@]}" -eq 0 ]; then
+            echo "No skills found (no top-level */SKILL.md). Nothing to do."
+            exit 0
+          fi
+          echo "Discovered skills: ${skills[*]}"
+
+          # Release everything on manual dispatch (all=true) or the repo's first push.
+          release_all=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "${FORCE_ALL:-true}" = "true" ]; then
+            release_all=true
+          fi
+          if [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            release_all=true
+          fi
+
+          # Otherwise, diff the push to see which skill folders actually changed.
+          diff=""
+          if [ "$release_all" != "true" ]; then
+            diff="$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" || true)"
+          fi
+
+          # A skill is (re)released if: releasing all, its files changed, or it
+          # has no release yet (self-bootstrapping / self-healing).
+          to_release=()
+          for s in "${skills[@]}"; do
+            if [ "$release_all" = "true" ]; then
+              to_release+=("$s")
+            elif printf '%s\n' "$diff" | grep -q "^${s}/"; then
+              to_release+=("$s")
+            elif ! gh release view "$s" >/dev/null 2>&1; then
+              echo "No existing release for '$s' — creating it."
+              to_release+=("$s")
+            fi
+          done
+
+          if [ "${#to_release[@]}" -eq 0 ]; then
+            echo "No skills changed and all have releases. Nothing to do."
+            exit 0
+          fi
+          echo "Releasing: ${to_release[*]}"
+
+          short="${AFTER_SHA:0:7}"
+          for skill in "${to_release[@]}"; do
+            echo "::group::Packaging $skill"
+            rm -f "${skill}.zip"
+            zip -rq "${skill}.zip" "$skill" -x '*.DS_Store'
+
+            notes=$(cat <<EOF
+Latest \`${skill}\` skill, packaged from \`${short}\`.
+
+**Install:** download \`${skill}.zip\`, unzip it, and point your Paperclip agent's instructions at \`${skill}/SKILL.md\`.
+EOF
+)
+            # Rolling release: drop the old release+tag and recreate at this commit
+            # so the tag, notes, and zip all reflect the current state of the skill.
+            gh release delete "$skill" --yes --cleanup-tag 2>/dev/null || true
+            gh release create "$skill" "${skill}.zip" \
+              --title "$skill" \
+              --notes "$notes" \
+              --target "$AFTER_SHA"
+            echo "::endgroup::"
+          done
