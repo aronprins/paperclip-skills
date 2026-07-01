@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local research/working notes, not skill content
+reports/
