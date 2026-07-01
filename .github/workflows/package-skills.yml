@@ -89,18 +89,17 @@ jobs:
             rm -f "${skill}.zip"
             zip -rq "${skill}.zip" "$skill" -x '*.DS_Store'
 
-            notes=$(cat <<EOF
-Latest \`${skill}\` skill, packaged from \`${short}\`.
+            printf '%s\n\n%s\n' \
+              "Latest \`${skill}\` skill, packaged from \`${short}\`." \
+              "**Install:** download \`${skill}.zip\`, unzip it, and point your Paperclip agent's instructions at \`${skill}/SKILL.md\`." \
+              > "${skill}.notes.md"
 
-**Install:** download \`${skill}.zip\`, unzip it, and point your Paperclip agent's instructions at \`${skill}/SKILL.md\`.
-EOF
-)
             # Rolling release: drop the old release+tag and recreate at this commit
             # so the tag, notes, and zip all reflect the current state of the skill.
             gh release delete "$skill" --yes --cleanup-tag 2>/dev/null || true
             gh release create "$skill" "${skill}.zip" \
               --title "$skill" \
-              --notes "$notes" \
+              --notes-file "${skill}.notes.md" \
               --target "$AFTER_SHA"
             echo "::endgroup::"
           done
