@@ -73,14 +73,16 @@ disallows swapfiles on their storage.
 ### 6. Essential base packages
 ```bash
 apt -y install \
-  unattended-upgrades apt-listchanges \   # automatic security updates (see 06)
-  ufw \                                    # firewall front-end (see 03)
-  fail2ban \                               # brute-force mitigation (see 02/10)
-  auditd audispd-plugins \                 # auditing (see 05/12)
-  chrony \                                 # accurate time (security + logs depend on it)
+  unattended-upgrades apt-listchanges \
+  ufw \
+  fail2ban \
+  auditd audispd-plugins \
+  chrony \
   curl wget git rsync ca-certificates gnupg lsb-release \
-  htop ncdu       # human troubleshooting comfort
+  htop ncdu
 ```
+These cover automatic security updates (`06`), the firewall front-end (`03`), brute-force mitigation
+(`02`/`10`), auditing (`05`/`12`), accurate time, and basic troubleshooting tools.
 
 ### 7. Baseline sysctl (network + process hygiene)
 Full detail is in `05-system-hardening.md`; the minimal provisioning baseline:

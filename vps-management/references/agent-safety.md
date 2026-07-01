@@ -66,6 +66,40 @@ evidence (processes, connections, memory) and understand scope before changing s
 rebuild-from-clean + restore a backup that predates the intrusion + rotate all credentials). Full
 procedure in `11-incident-response.md`. Get human confirmation before any state-changing containment.
 
+## Orientation checklist (read-only — run before any change)
+
+Gather these facts *first*, every session, before you touch anything. Every command here only reads
+state; none of it modifies the box. Work top to bottom and state your understanding back to the human
+before proposing changes.
+
+- [ ] **Identity & privilege.** `id`; then test escalation with `sudo -n true` (passwordless),
+  falling back to "sudo present but will prompt" or "no sudo." You cannot plan changes until you know
+  what you can do.
+- [ ] **Distro family** (decides every later command). `. /etc/os-release; echo "$ID $ID_LIKE $VERSION_ID"`,
+  then map it:
+  - *Debian/Ubuntu* → `apt`, `ufw`, AppArmor, admin group `sudo`, auth log `/var/log/auth.log`.
+  - *RHEL family* (Alma/Rocky/RHEL/Fedora/CentOS) → `dnf`, `firewalld`, SELinux, admin group `wheel`,
+    auth log `/var/log/secure`.
+  - *Unknown* → verify each command manually before running it.
+- [ ] **Uptime, kernel, pending reboot.** `uptime`; `uname -r`; check `/var/run/reboot-required`
+  (Debian) — a pending kernel/libc reboot changes your patch/reboot plan.
+- [ ] **Human login users.** `getent passwd | awk -F: '$3>=1000 && $3<60000 {print $1,$3,$7}'` — who
+  else has an account, and with which shell.
+- [ ] **Listening sockets (attack surface).** `ss -tulnp` — every `0.0.0.0`/`[::]` listener is
+  something the box exposes; each should be one you *intend* to expose.
+- [ ] **Running services.** `systemctl list-units --type=service --state=running --no-pager` — what is
+  actually live.
+- [ ] **Detected stacks / control panels.** Probe for `nginx apache2 httpd php-fpm mysql mariadb
+  postgres docker containerd redis-server memcached` on `PATH`, and for panel markers
+  (`/opt/RunCloud`, `/etc/gridpane`, `/usr/local/cpanel`, `/usr/local/psa`, `/opt/cyberpanel`,
+  `/www/server`, …). A managed panel means config is owned by *its* tooling — don't clobber it.
+- [ ] **Security posture snapshot.** `sshd -T | grep -Ei '^(permitrootlogin|passwordauthentication|pubkeyauthentication) '`
+  (effective SSH auth); `ufw status` / `firewall-cmd --state`; `getenforce` / `aa-status` (MAC).
+- [ ] **Make the fresh-vs-production call.** Heuristic: **more than ~3 public listeners or ~25 running
+  services ⇒ treat as production** — change one reversible thing at a time and verify between steps.
+  Fewer ⇒ likely fresh/lightly-used and safe to harden in one pass, but *still* keep a session open
+  and back up before each change. When in doubt, assume production.
+
 ## Fresh vs production risk posture
 
 - **Fresh box (just provisioned, nothing serving traffic):** you can harden aggressively in one pass;
@@ -83,8 +117,9 @@ an interruption and safe to run twice — a property an autonomous agent needs, 
 
 ## Objective verification
 
-Where the goal is "secure this," measure it: Lynis hardening index before and after
-(`scripts/lynis-score.sh`), key-only SSH confirmed from a second session, default-deny firewall
+Where the goal is "secure this," measure it: Lynis hardening index before and after (the *Lynis
+before/after checklist* in `05-system-hardening.md`), key-only SSH confirmed from a second session,
+default-deny firewall
 exposing only intended ports, auto-updates on with a reboot policy, and — for data — a **restored**
 backup, not merely a taken one. Report the deltas. Remember Lynis measures config conformance, not
 absolute security, and a minimal server scores higher partly by running less.

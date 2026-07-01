@@ -18,6 +18,9 @@ call-home from compromised software.
 
 ## How — ufw (Ubuntu/Debian primary)
 
+Stage the rules first, then stop for the `AGENTS.md` §4 confirmation gate before enabling the
+firewall on a remote host.
+
 ```bash
 ufw default deny incoming
 ufw default allow outgoing
@@ -25,9 +28,18 @@ ufw allow OpenSSH                 # do this BEFORE enabling; opens 22 (or your c
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw limit 22/tcp                  # rate-limit SSH: throttles repeated connections from one IP
-# Optional time-delayed safety net so a mistake self-heals:
-# echo 'ufw allow OpenSSH' | at now + 15 minutes   # cancel with atrm once you've confirmed access
-ufw enable                        # answer 'y'; your current session should survive because 22 is allowed
+ufw show added                    # pre-enable review: SSH must be present
+```
+
+Before you run `ufw enable`, confirm all of this out loud: current SSH session stays open, SSH allow
+rule is visible, provider console/recovery is available or a timed recovery job is armed, and the
+human has approved enabling the firewall on this host. Then enable, immediately open a second SSH
+session, and only then trust the rule set.
+
+```bash
+# Optional timed recovery net; cancel with atrm after second-session SSH succeeds.
+echo 'ufw allow OpenSSH' | at now + 15 minutes
+ufw enable
 ufw status verbose
 ```
 Add services as needed (`ufw allow 5432/tcp` only if the DB must be remote — usually it shouldn't be;
@@ -35,15 +47,24 @@ bind it to localhost instead, see `07`).
 
 ## How — firewalld (RHEL primary)
 
+Add permanent rules first, then reload only after the same SSH/console confirmation gate.
+
 ```bash
 firewall-cmd --set-default-zone=public
 firewall-cmd --permanent --add-service=ssh
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
+firewall-cmd --list-all
+```
+Confirm `ssh` is present in the permanent rules, keep the current session open, then reload and test
+a second SSH session:
+
+```bash
 firewall-cmd --reload
 firewall-cmd --list-all
-# Emergency block-all (careful — also blocks you): firewall-cmd --panic-on ; --panic-off to release
 ```
+Avoid `firewall-cmd --panic-on` during normal hardening; it blocks all network traffic, including
+your own SSH session.
 firewalld is zone-based: assign interfaces to zones and attach rules to zones. Rich rules add
 source-based allow/deny and rate limits.
 
@@ -71,6 +92,13 @@ table inet filter {
 }
 EOF
 nft -c -f /etc/nftables.conf     # CHECK the ruleset (dry run) before applying
+nft list ruleset
+```
+Only after `nft -c` passes and the SSH accept rule is visibly present should you enable/reload
+nftables on a remote host. Keep the current SSH session open and prove a second login immediately
+after applying:
+
+```bash
 systemctl enable --now nftables
 nft list ruleset
 ```
@@ -119,8 +147,22 @@ ss -tulnp | grep LISTEN       # cross-check: which ports are actually listening?
 # From outside the host:
 nmap -Pn -p22,80,443,3306,5432 host    # only intended ports should be open; DBs should be filtered/closed
 ```
-Use `scripts/verify-firewall.sh` to automate the "default-deny in effect + only intended ports open"
-check across all three front-ends.
+**Verify checklist** — confirm "default-deny in effect + only intended ports open" against whichever
+front-end is active:
+
+- [ ] **ufw:** `ufw status verbose` shows `Status: active` and `Default: deny (incoming)`, and an SSH
+  allow rule (`22/tcp` or `OpenSSH`) is present. No default-deny ⇒ tighten with `ufw default deny
+  incoming`.
+- [ ] **firewalld:** `firewall-cmd --state` is `running`; `firewall-cmd --list-all` shows the intended
+  zone and `ssh` in its services list.
+- [ ] **nftables:** `nft list ruleset` shows the `input` chain with `policy drop` and an explicit
+  `dport 22`/`ssh` accept.
+- [ ] **No active host firewall found** (ufw inactive, firewalld stopped, no nft input policy)? The
+  host is relying on provider security groups only. Consider enabling one — but **allow SSH first**,
+  then enable (`AGENTS.md` §4).
+- [ ] **Cross-check the listeners:** every `0.0.0.0`/`[::]` entry in `ss -tulnp` should be a port you
+  *intend* to expose. Databases/caches (3306/5432/6379/11211) should listen on `127.0.0.1` only, not
+  `0.0.0.0` — bind them to localhost rather than opening a firewall port (`07`).
 
 ## How managed services handle it
 Forge configures a firewall that allows 22/80/443 by default and explicitly warns against removing

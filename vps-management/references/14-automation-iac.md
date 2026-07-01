@@ -33,8 +33,14 @@ packages: [ufw, fail2ban, unattended-upgrades, auditd, chrony]
 runcmd:
   - ufw default deny incoming
   - ufw allow OpenSSH
-  - ufw --force enable
+  # Enable the firewall in a later, verified step unless this exact user-data has already been
+  # tested on the target provider and you have out-of-band console recovery.
 ```
+Do not add `ufw --force enable` to first-draft cloud-init. First boot is unattended, so a bad SSH key,
+wrong default user, custom SSH port, or provider image quirk can lock you out before you ever get a
+lifeline session. For fleets, test the full user-data on a disposable server with provider-console
+recovery, then promote the exact known-good definition.
+
 **Security (cloud-init's own hardening guidance):** never put plaintext passwords or secrets in
 `user-data`, `runcmd`, or `bootcmd` — user-data is readable via the cloud metadata service and may be
 logged in `/var/log/cloud-init*.log`. Use `hashed_passwd` (never plaintext), `ssh_authorized_keys` /
@@ -68,6 +74,11 @@ image; new servers come up already at your baseline (and already scoring well on
 makes rebuild-after-compromise (`11`) fast.
 
 ### 4. Secrets management
+When running under Paperclip, secrets reach you as environment variables via `secret_ref` bindings —
+you read the variable, and report which secret to bind if it's missing. See `15-secrets.md` for that
+resolve-or-report flow; the tools below are the generic, off-platform equivalents (and what those
+bindings ultimately point at).
+
 - **Never hardcode** secrets in playbooks, scripts, cloud-init, or command lines.
 - **Ansible Vault** encrypts variable files at rest (`ansible-vault encrypt group_vars/secrets.yml`).
 - For dynamic/short-lived secrets use a secrets manager (HashiCorp Vault, cloud KMS/Secrets Manager,

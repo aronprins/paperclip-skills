@@ -68,6 +68,16 @@ A **fresh server** can be hardened aggressively in one pass. A **live production
 changed incrementally, one reversible step at a time, because a wrong move can take down a running
 service or lock you out. When in doubt, treat it as production.
 
+### Step 0.5 — Resolve the secrets the task needs
+
+Before a workflow that requires credentials (SSH key to connect, provider API token to provision or
+snapshot, backup passphrase, DB password), resolve them from your **environment**. Under Paperclip
+these arrive as `secret_ref` bindings injected as environment variables. Read the variable you need;
+if it's missing, **stop and report exactly which secret to bind** rather than hardcoding or guessing.
+The env-var contract, the resolve-or-report protocol, and the missing-secret report format live in
+`references/15-secrets.md` (governed by `AGENTS.md` §7). Resolve at the point of need — don't demand
+every secret up front.
+
 ### Step 1 — Pick the workflow
 
 **Provisioning a brand-new server (empty box → secure baseline):** work through, in order,
@@ -75,10 +85,10 @@ service or lock you out. When in doubt, treat it as production.
 `06-patch-management` → `05-system-hardening`. Then add application stack (`07`) and day-2 ops
 (`08`–`10`, `12`) as the role requires.
 
-**Securing / auditing an existing server:** start by scoring the current state
-(`scripts/lynis-score.sh` if Lynis is available, else read `05-system-hardening` for a manual
-checklist), then remediate highest-risk items first: SSH (`02`), firewall (`03`), patching (`06`),
-users/access (`04`), then broader hardening (`05`). Re-score to prove improvement.
+**Securing / auditing an existing server:** start by scoring the current state with the **Lynis
+before/after checklist** in `05-system-hardening`, then remediate highest-risk items first: SSH
+(`02`), firewall (`03`), patching (`06`), users/access (`04`), then broader hardening (`05`).
+Re-score to prove improvement.
 
 **Standing up an application:** `07-web-app-stack` for Nginx/Apache/TLS/PHP-FPM/Node/Docker and
 database secure-defaults, plus `03-firewall-network` to open only the needed ports.
@@ -112,6 +122,7 @@ collection, building hardened images).
 | 12 | `references/12-log-management.md` | journald persistence, rotation, remote/central logging, auditd rules. |
 | 13 | `references/13-performance.md` | sysctl perf tuning, ulimits, swappiness, caching, right-sizing. |
 | 14 | `references/14-automation-iac.md` | cloud-init, Ansible/devsec hardening, secrets, hardened images. |
+| 15 | `references/15-secrets.md` | Resolve credentials (SSH keys, tokens, passphrases) from your environment; report missing ones. |
 
 Each reference file follows the same shape: **Why** (the standard/rationale), **How** (exact paths
 and config snippets, Ubuntu/Debian primary with a RHEL-family callout), **Pitfalls**, **Verify**,
@@ -151,24 +162,31 @@ front-end swap, not a different concept.
 - **Standards over vibes.** Prefer CIS/NIST/Mozilla/OpenSSH-documented settings to folklore. Where a
   reference file cites a specific cipher list or version, treat it as "correct at time of writing"
   and re-verify against current advisories — crypto and CVEs move.
+- **Secrets come from the environment, never from guesswork.** Read every credential (SSH keys,
+  provider tokens, backup passphrases, DB passwords) from injected environment variables. If a
+  required one is missing, stop and report exactly which secret to provide — don't hardcode, don't
+  paste plaintext into chat, don't proceed. See `AGENTS.md` §7 and `references/15-secrets.md`.
 
-## Scripts
+## Operational checklists
 
-`scripts/` holds deterministic helpers the agent can run instead of hand-typing multi-step
-sequences. They are conservative: they back up before changing, validate before applying, and print
-what they did. Read a script before running it, and prefer running with any provided `--dry-run`
-first.
+This skill is a **runbook, not an executable toolkit**: it hands you the exact steps to type and
+verify yourself, one reversible action at a time, rather than a script that acts for you. The
+multi-step operations most worth doing carefully live as inline checklists in the references — read
+the checklist, run each step by hand, and confirm the result before the next:
 
-- `scripts/preflight.sh` — gather the Step 0 orientation facts in one pass (distro, role, users,
-  listeners, existing services/panels) and print a risk assessment (fresh vs production).
-- `scripts/harden-ssh.sh` — apply the SSH baseline via a drop-in file, `sshd -t`-validate, reload
-  without dropping the session, and print the exact second-session test to run before trusting it.
-- `scripts/verify-firewall.sh` — confirm default-deny is in effect and only intended ports are open,
-  across ufw/firewalld/nftables.
-- `scripts/backup-restore-test.sh` — prove a backup is restorable by restoring it into a scratch
-  location and diffing (a backup you've never restored is not a backup).
-- `scripts/lynis-score.sh` — run a Lynis audit and extract the hardening index for before/after
-  comparison (install Lynis if absent; target ≥ 80 for production).
+- **Orientation (read-only)** — `references/agent-safety.md` → *Orientation checklist*: the facts to
+  gather before any change (distro family, role, users, listeners, services/panels) and the
+  fresh-vs-production risk call.
+- **SSH hardening (anti-lockout)** — `references/02-ssh-hardening.md` → *Apply checklist*: the ordered
+  drop-in → `sshd -t` → reload → second-session sequence, including the key-presence gate before
+  disabling passwords.
+- **Firewall verification** — `references/03-firewall-network.md` → *Verify checklist*: confirm
+  default-deny is in effect and only intended ports are open across ufw/firewalld/nftables.
+- **Backup restore test** — `references/09-backups-dr.md` → *Restore-test checklist*: prove a backup is
+  restorable by restoring into a scratch location and diffing (a backup you've never restored is not a
+  backup).
+- **Lynis before/after scoring** — `references/05-system-hardening.md` → *Lynis before/after
+  checklist*: measure the hardening index before and after (target ≥ 80 for production).
 
 ## What "done" looks like
 

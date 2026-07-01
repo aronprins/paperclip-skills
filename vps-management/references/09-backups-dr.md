@@ -74,8 +74,20 @@ restic restore latest --target /tmp/restore-test --include /etc/nginx
 diff -r /etc/nginx /tmp/restore-test/etc/nginx && echo "RESTORE VERIFIED"
 restic check --read-data-subset=5%      # verify repository integrity / detect bit-rot
 ```
-`scripts/backup-restore-test.sh` automates a restore-and-diff. Put a calendar reminder (or a monthly
-timer) on a full DB restore into staging — that's the only way to know your RTO is real.
+**Restore-test checklist** — prove a backup is *restorable*, not merely present. It only reads your
+repo and writes to a throwaway scratch dir, so it's safe to run against live data:
+
+- [ ] **List snapshots** so you know what you're restoring: `restic snapshots` (borg: `borg list`).
+- [ ] **Check repository integrity:** `restic check --read-data-subset=5%` (borg: `borg check
+  --verify-data`) — catches bit-rot / a damaged repo before you trust it.
+- [ ] **Restore a subset into a fresh scratch dir**, e.g. `restic restore latest --target
+  "$(mktemp -d)" --include /etc/nginx` (borg: `borg extract` inside the scratch dir).
+- [ ] **Diff restored vs live:** `diff -r /etc/nginx <scratch>/etc/nginx`. Identical ⇒ restore
+  verified. Differences are often just files that changed *after* the backup ran — confirm the restore
+  itself produced the expected files before treating a diff as a failure.
+- [ ] **Clean up** only the scratch directory you created, after confirming it is not a live path.
+- [ ] **A subset match only proves the pipeline works.** Put a monthly reminder/timer on a **full**
+  restore into a throwaway VM, then boot the app — that's the only way to know your real RTO.
 
 ## RHEL family differences
 Tools are identical (restic/borg are distro-agnostic). `dnf install restic` (EPEL) or grab the
@@ -98,8 +110,7 @@ so contexts are correct, or the restored service may be denied access.
 ```bash
 restic snapshots            # recent snapshots exist on schedule
 restic check                # repository consistent
-# Prove restorability (the real test):
-bash scripts/backup-restore-test.sh
+# Prove restorability (the real test) — follow the Restore-test checklist in step 6 above.
 # Confirm the timer is active and last run succeeded:
 systemctl list-timers backup.timer ; journalctl -u backup.service --since -2d | tail
 ```

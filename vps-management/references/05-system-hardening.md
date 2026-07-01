@@ -26,7 +26,8 @@ with restrictive options where the content allows.
 ```bash
 # If /tmp is its own mount (or use a tmpfs entry in /etc/fstab):
 # tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0
-mount -o remount,nosuid,nodev,noexec /tmp 2>/dev/null || true
+# Apply only after verifying no installer/build/app executes from /tmp, and keep rollback ready:
+# mount -o remount,nosuid,nodev,noexec /tmp
 # /dev/shm hardening:
 grep -q '/dev/shm' /etc/fstab || echo 'tmpfs /dev/shm tmpfs defaults,noexec,nosuid,nodev 0 0' >> /etc/fstab
 ```
@@ -112,11 +113,13 @@ cat >/etc/audit/rules.d/50-hardening.rules <<'EOF'
 -a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k rootcmd
 -w /sbin/insmod -p x -k modules
 -w /sbin/modprobe -p x -k modules
--e 2
 EOF
 augenrules --load
-auditctl -s                    # enabled 2 = rules immutable until reboot
+auditctl -s
 ```
+Once the rules load cleanly and do not break expected operations, optionally add a final immutable
+rule (`-e 2`) as a separate, deliberate step. Immutable audit rules require a reboot to change, so do
+not enable them during exploratory tuning.
 More detail and CIS/STIG rule sets in `12-log-management.md`.
 
 ### 7. AIDE — file integrity monitoring
@@ -126,7 +129,8 @@ off-server or make it immutable, and check on a schedule.
 apt -y install aide aide-common
 aideinit                       # builds the baseline; can take a while
 cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-chattr +i /var/lib/aide/aide.db    # or copy the DB off-box; prevents tampering
+# Optional after you define the rebaseline process: chattr +i /var/lib/aide/aide.db
+# Better for many VPSes: copy the DB off-box so root on the host cannot tamper with it.
 # Daily check via cron/systemd timer:
 echo '0 5 * * * root /usr/bin/aide.wrapper --check | mail -s "AIDE report $(hostname)" root' \
   > /etc/cron.d/aide-check
@@ -157,9 +161,30 @@ findmnt /tmp /dev/shm -o TARGET,OPTIONS
 aa-status || getenforce
 auditctl -s && auditctl -l | head
 aide --check | tail             # after baseline
-# Objective score before/after (see scripts/lynis-score.sh):
+# Objective score before/after (see the Lynis before/after checklist below):
 lynis audit system --quick && grep -i 'hardening index' /var/log/lynis.log
 ```
+
+## Lynis before/after checklist
+
+Where the job is "secure this server," measure it — capture a score *before* you remediate and again
+*after*, and report the delta. This is a read-only audit; it makes no changes.
+
+- [ ] **Install Lynis if absent** (distro-aware): Debian/Ubuntu `apt-get install -y lynis`; RHEL family
+  `dnf install -y epel-release && dnf install -y lynis`. Root gives the most complete result — without
+  it, some tests are skipped and the score is understated.
+- [ ] **Run the audit:** `lynis audit system --quick` (the `--quick` flag skips interactive pauses;
+  still read-only).
+- [ ] **Read the hardening index:** from `/var/log/lynis-report.dat`, `awk -F= '/hardening_index=/{print
+  $2}' | tail -1` (or `grep -i 'hardening index' /var/log/lynis.log`). Interpret it: **≥ 80** =
+  production target met; **65–79** = partially hardened, keep pushing (apply `02`/`03`/`05`/`06`);
+  **< 65** = near a fresh-install baseline.
+- [ ] **Label before vs after.** Record the score with a label (e.g. append `"$(date -u +%FT%TZ)
+  before <n>"` to a notes file) so the before/after comparison is unambiguous after remediation.
+- [ ] **Work the top suggestions:** the `suggestion[]=` lines in `/var/log/lynis-report.dat` are your
+  highest-impact next actions — address those, then re-run and confirm the index rose.
+- [ ] **Read the score as relative, not absolute** (`AGENTS.md` §8): it measures configuration
+  conformance, not real-world security, and a minimal server scores higher partly by running less.
 
 ## How managed services handle it
 The panels apply a pragmatic subset of this — automatic security updates, MAC left enforcing, sane

@@ -39,7 +39,8 @@ Never run a mutating command until you know what you're on and whether it's live
   (`ss -tulnp`). If real services are serving traffic, treat the box as **production**: change one
   reversible thing at a time and verify between steps. When uncertain, assume production.
 - **Inventory what's already there** (users, web servers, databases, control panels) so you don't
-  clobber existing configuration. `scripts/preflight.sh` collects all of this in one pass.
+  clobber existing configuration. The **orientation checklist** in `references/agent-safety.md` lists
+  exactly what to gather, in order, with the fresh-vs-production risk call at the end.
 
 State your understanding back to the human ("This is Ubuntu 24.04, production, running Nginx + MySQL,
 3 human users") before proposing changes to a server you didn't just provision.
@@ -129,16 +130,31 @@ re-runnable, reviewable, and safe to resume after an interruption.
 
 Never hardcode passwords, API keys, or private keys into scripts, configs committed to disk in
 plaintext, or command lines (they leak into shell history and process listings, and cloud-init
-user-data is readable via the metadata service). Generate strong secrets, hand them to the human
-through a secure channel, and store them in a secrets manager or an access-restricted file. Prefer
-key-based and certificate-based auth over passwords wherever possible.
+user-data is readable via the metadata service). Generate strong secrets, store them in a secrets
+manager or an access-restricted file, and prefer key-based and certificate-based auth over passwords
+wherever possible.
+
+**Resolve, don't invent.** Obtain every credential a task needs from your **environment**, not by
+guessing or by asking the human to paste a plaintext value. Modern orchestrators inject bound secrets
+as environment variables at run start; read the variable and use it. If a required variable is
+**missing**, that is a configuration gap — **stop the step and report exactly which secret is needed
+and how to provide it.** Do not hardcode a placeholder, substitute an empty value, or continue past
+the gap (a "missing" backup passphrase silently yields an *unencrypted* backup).
+
+`references/15-secrets.md` is the mechanism: the env-var contract this skill reads, how to detect your
+runtime, the resolve-or-report protocol and report format, and how to handle a secret without leaking
+it (stdin / env / `0600` files, never argv). When running under Paperclip it uses the built-in secrets
+system (secret-ref bindings injected as env vars) and diagnoses missing bindings against the platform;
+otherwise it falls back to requesting the secret over a secure channel. Read it before any step that
+needs a credential.
 
 ---
 
 ## 8. Verify hardening objectively
 
-Where the goal is "secure this server," measure it. Run a Lynis audit before and after
-(`scripts/lynis-score.sh`) and report the hardening index delta. A fresh install commonly scores in
+Where the goal is "secure this server," measure it. Run a Lynis audit before and after (follow the
+**Lynis before/after checklist** in `references/05-system-hardening.md`) and report the hardening
+index delta. A fresh install commonly scores in
 the 50s–60s; CIS Level 1-equivalent hardening typically lifts it into the 70s–80s. Treat ≥ 80 as the
 production target — but understand the score is a *relative* signal of config conformance, not a
 guarantee of security, and a minimal server can score higher simply by running less software.

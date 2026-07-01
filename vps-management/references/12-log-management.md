@@ -64,7 +64,8 @@ mean a root-level attacker who wipes local logs can't erase the record.
 
 ### 4. auditd rules (the "who did what" trail)
 Baseline rules were introduced in `05`; a fuller CIS/STIG-aligned set lives in `/etc/audit/rules.d/`
-as numbered files (10-→90-), ending with `-e 2` to make the rule set immutable until reboot.
+as numbered files (10-→90-). Add `-e 2` only after the rules have been tested; it makes the rule
+set immutable until reboot.
 ```bash
 # Key categories to cover (add to /etc/audit/rules.d/70-cis.rules):
 #  - identity files: /etc/passwd /etc/group /etc/shadow /etc/gshadow  (-p wa)
@@ -77,8 +78,11 @@ as numbered files (10-→90-), ending with `-e 2` to make the rule set immutable
 #  - kernel module load/unload: init_module, delete_module, /sbin/insmod, /sbin/modprobe
 #  - unauthorized file-access attempts (EACCES/EPERM on open/openat)
 augenrules --load
-auditctl -s        # 'enabled 2' = immutable; reboot required to change rules
+auditctl -s
 ```
+After the rule set is tuned and verified, optionally add a final `-e 2` rule as a deliberate
+hardening step. Do not make audit rules immutable during exploratory tuning or on a production host
+without a rollback/reboot window.
 Curated, harmonized CIS+STIG rule sets (with living-off-the-land detection) exist as open-source
 starting points — adapt one rather than writing every rule by hand. Review with `aureport` /
 `ausearch` (e.g. `aureport -au` for auth, `ausearch -k scope` for sudoers changes).
@@ -105,7 +109,7 @@ rsyslog is present by default. Rule-file mechanics (`/etc/audit/rules.d/`, `auge
 ## Verify
 ```bash
 journalctl --disk-usage; ls /var/log/journal    # persistence in effect
-auditctl -s | grep -E 'enabled|backlog'         # enabled (2 = immutable)
+auditctl -s | grep -E 'enabled|backlog'         # enabled; immutable only after deliberate finalization
 auditctl -l | wc -l                             # rules loaded
 logrotate --debug /etc/logrotate.conf | tail    # rotation rules valid
 # Confirm remote delivery: generate an event and see it arrive on the log server/Loki.
