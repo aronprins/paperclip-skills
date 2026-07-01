@@ -74,6 +74,11 @@ image; new servers come up already at your baseline (and already scoring well on
 makes rebuild-after-compromise (`11`) fast.
 
 ### 4. Secrets management
+When running under Paperclip, secrets reach you as environment variables via `secret_ref` bindings —
+you read the variable, and report which secret to bind if it's missing. See `15-secrets.md` for that
+resolve-or-report flow; the tools below are the generic, off-platform equivalents (and what those
+bindings ultimately point at).
+
 - **Never hardcode** secrets in playbooks, scripts, cloud-init, or command lines.
 - **Ansible Vault** encrypts variable files at rest (`ansible-vault encrypt group_vars/secrets.yml`).
 - For dynamic/short-lived secrets use a secrets manager (HashiCorp Vault, cloud KMS/Secrets Manager,

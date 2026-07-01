@@ -1,4 +1,15 @@
 interface:
   display_name: "VPS Management"
   short_description: "Safe Linux VPS operations runbook"
-  default_prompt: "Use $vps-management to orient on this server, confirm whether it is fresh or production, then harden SSH and the firewall without locking yourself out."
+  default_prompt: "Use $vps-management to orient on this server, confirm whether it is fresh or production, then harden SSH and the firewall without locking yourself out. Resolve any credentials you need (SSH key, provider token, backup passphrase) from your environment; if a required secret is missing, stop and report exactly which secret to bind (see references/15-secrets.md) rather than hardcoding or asking for a plaintext paste."
+
+# Secrets are consumed as environment variables (Paperclip injects secret_ref bindings at run start).
+# Bind the secrets a given task needs to this agent's Environment variables. Common keys this skill
+# reads (see references/15-secrets.md for the full contract):
+#   VPS_SSH_PRIVATE_KEY (PEM)      — SSH private key to connect
+#   VPS_SSH_HOST / VPS_SSH_USER / VPS_SSH_PORT — connection target (config, not secret)
+#   VPS_SUDO_PASSWORD             — sudo password if the account isn't NOPASSWD
+#   DO_API_TOKEN / HCLOUD_TOKEN / AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY — provider API
+#   RESTIC_PASSWORD / BORG_PASSPHRASE — backup repository passphrase
+#   B2_ACCOUNT_ID + B2_ACCOUNT_KEY — backup object-store credentials
+#   UBUNTU_PRO_TOKEN, CROWDSEC_ENROLL_KEY, CF_API_TOKEN, DB_ROOT_PASSWORD, ANSIBLE_VAULT_PASSWORD

@@ -130,9 +130,23 @@ re-runnable, reviewable, and safe to resume after an interruption.
 
 Never hardcode passwords, API keys, or private keys into scripts, configs committed to disk in
 plaintext, or command lines (they leak into shell history and process listings, and cloud-init
-user-data is readable via the metadata service). Generate strong secrets, hand them to the human
-through a secure channel, and store them in a secrets manager or an access-restricted file. Prefer
-key-based and certificate-based auth over passwords wherever possible.
+user-data is readable via the metadata service). Generate strong secrets, store them in a secrets
+manager or an access-restricted file, and prefer key-based and certificate-based auth over passwords
+wherever possible.
+
+**Resolve, don't invent.** Obtain every credential a task needs from your **environment**, not by
+guessing or by asking the human to paste a plaintext value. Modern orchestrators inject bound secrets
+as environment variables at run start; read the variable and use it. If a required variable is
+**missing**, that is a configuration gap — **stop the step and report exactly which secret is needed
+and how to provide it.** Do not hardcode a placeholder, substitute an empty value, or continue past
+the gap (a "missing" backup passphrase silently yields an *unencrypted* backup).
+
+`references/15-secrets.md` is the mechanism: the env-var contract this skill reads, how to detect your
+runtime, the resolve-or-report protocol and report format, and how to handle a secret without leaking
+it (stdin / env / `0600` files, never argv). When running under Paperclip it uses the built-in secrets
+system (secret-ref bindings injected as env vars) and diagnoses missing bindings against the platform;
+otherwise it falls back to requesting the secret over a secure channel. Read it before any step that
+needs a credential.
 
 ---
 
