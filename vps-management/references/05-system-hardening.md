@@ -26,7 +26,8 @@ with restrictive options where the content allows.
 ```bash
 # If /tmp is its own mount (or use a tmpfs entry in /etc/fstab):
 # tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0
-mount -o remount,nosuid,nodev,noexec /tmp 2>/dev/null || true
+# Apply only after verifying no installer/build/app executes from /tmp, and keep rollback ready:
+# mount -o remount,nosuid,nodev,noexec /tmp
 # /dev/shm hardening:
 grep -q '/dev/shm' /etc/fstab || echo 'tmpfs /dev/shm tmpfs defaults,noexec,nosuid,nodev 0 0' >> /etc/fstab
 ```
@@ -112,11 +113,13 @@ cat >/etc/audit/rules.d/50-hardening.rules <<'EOF'
 -a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=4294967295 -k rootcmd
 -w /sbin/insmod -p x -k modules
 -w /sbin/modprobe -p x -k modules
--e 2
 EOF
 augenrules --load
-auditctl -s                    # enabled 2 = rules immutable until reboot
+auditctl -s
 ```
+Once the rules load cleanly and do not break expected operations, optionally add a final immutable
+rule (`-e 2`) as a separate, deliberate step. Immutable audit rules require a reboot to change, so do
+not enable them during exploratory tuning.
 More detail and CIS/STIG rule sets in `12-log-management.md`.
 
 ### 7. AIDE — file integrity monitoring
@@ -126,7 +129,8 @@ off-server or make it immutable, and check on a schedule.
 apt -y install aide aide-common
 aideinit                       # builds the baseline; can take a while
 cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db
-chattr +i /var/lib/aide/aide.db    # or copy the DB off-box; prevents tampering
+# Optional after you define the rebaseline process: chattr +i /var/lib/aide/aide.db
+# Better for many VPSes: copy the DB off-box so root on the host cannot tamper with it.
 # Daily check via cron/systemd timer:
 echo '0 5 * * * root /usr/bin/aide.wrapper --check | mail -s "AIDE report $(hostname)" root' \
   > /etc/cron.d/aide-check

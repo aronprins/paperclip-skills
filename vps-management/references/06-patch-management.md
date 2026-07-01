@@ -53,9 +53,11 @@ Unattended-Upgrade::Remove-Unused-Dependencies "true";
 ### 3. Reboot policy
 A kernel or glibc update requires a reboot to take effect. Decide explicitly:
 ```
-Unattended-Upgrade::Automatic-Reboot "true";
-Unattended-Upgrade::Automatic-Reboot-Time "02:00";
-Unattended-Upgrade::Automatic-Reboot-WithUsers "false";   // don't reboot out from under logged-in users
+Unattended-Upgrade::Automatic-Reboot "false";              // safest default for stateful/single hosts
+// If this host is stateless or has an approved maintenance window, switch to:
+// Unattended-Upgrade::Automatic-Reboot "true";
+// Unattended-Upgrade::Automatic-Reboot-Time "02:00";
+// Unattended-Upgrade::Automatic-Reboot-WithUsers "false"; // don't reboot with logged-in users
 ```
 Auto-reboot needs `update-notifier-common` installed or it silently won't reboot. On uptime-critical
 single hosts, prefer **live patching** (below) and manual reboots during maintenance windows over

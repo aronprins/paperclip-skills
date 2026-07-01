@@ -23,7 +23,10 @@ time.
   IPs. Scales to large blocklists via nftables sets. fail2ban and CrowdSec can run together
   (fail2ban for SSH, CrowdSec for web).
 ```bash
-curl -s https://install.crowdsec.net | sudo sh      # review first; then:
+# Prefer distro packages where available. If using CrowdSec's bootstrap, download and review it first:
+curl -fsSL -o /tmp/crowdsec-install.sh https://install.crowdsec.net
+less /tmp/crowdsec-install.sh
+sh /tmp/crowdsec-install.sh
 apt -y install crowdsec crowdsec-firewall-bouncer-nftables
 cscli metrics ; cscli decisions list
 ```

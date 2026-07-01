@@ -18,6 +18,9 @@ call-home from compromised software.
 
 ## How — ufw (Ubuntu/Debian primary)
 
+Stage the rules first, then stop for the `AGENTS.md` §4 confirmation gate before enabling the
+firewall on a remote host.
+
 ```bash
 ufw default deny incoming
 ufw default allow outgoing
@@ -25,9 +28,18 @@ ufw allow OpenSSH                 # do this BEFORE enabling; opens 22 (or your c
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw limit 22/tcp                  # rate-limit SSH: throttles repeated connections from one IP
-# Optional time-delayed safety net so a mistake self-heals:
-# echo 'ufw allow OpenSSH' | at now + 15 minutes   # cancel with atrm once you've confirmed access
-ufw enable                        # answer 'y'; your current session should survive because 22 is allowed
+ufw show added                    # pre-enable review: SSH must be present
+```
+
+Before you run `ufw enable`, confirm all of this out loud: current SSH session stays open, SSH allow
+rule is visible, provider console/recovery is available or a timed recovery job is armed, and the
+human has approved enabling the firewall on this host. Then enable, immediately open a second SSH
+session, and only then trust the rule set.
+
+```bash
+# Optional timed recovery net; cancel with atrm after second-session SSH succeeds.
+echo 'ufw allow OpenSSH' | at now + 15 minutes
+ufw enable
 ufw status verbose
 ```
 Add services as needed (`ufw allow 5432/tcp` only if the DB must be remote — usually it shouldn't be;
@@ -35,15 +47,24 @@ bind it to localhost instead, see `07`).
 
 ## How — firewalld (RHEL primary)
 
+Add permanent rules first, then reload only after the same SSH/console confirmation gate.
+
 ```bash
 firewall-cmd --set-default-zone=public
 firewall-cmd --permanent --add-service=ssh
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
+firewall-cmd --list-all
+```
+Confirm `ssh` is present in the permanent rules, keep the current session open, then reload and test
+a second SSH session:
+
+```bash
 firewall-cmd --reload
 firewall-cmd --list-all
-# Emergency block-all (careful — also blocks you): firewall-cmd --panic-on ; --panic-off to release
 ```
+Avoid `firewall-cmd --panic-on` during normal hardening; it blocks all network traffic, including
+your own SSH session.
 firewalld is zone-based: assign interfaces to zones and attach rules to zones. Rich rules add
 source-based allow/deny and rate limits.
 
@@ -71,6 +92,13 @@ table inet filter {
 }
 EOF
 nft -c -f /etc/nftables.conf     # CHECK the ruleset (dry run) before applying
+nft list ruleset
+```
+Only after `nft -c` passes and the SSH accept rule is visibly present should you enable/reload
+nftables on a remote host. Keep the current SSH session open and prove a second login immediately
+after applying:
+
+```bash
 systemctl enable --now nftables
 nft list ruleset
 ```

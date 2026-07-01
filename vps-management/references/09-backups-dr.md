@@ -85,7 +85,7 @@ repo and writes to a throwaway scratch dir, so it's safe to run against live dat
 - [ ] **Diff restored vs live:** `diff -r /etc/nginx <scratch>/etc/nginx`. Identical ⇒ restore
   verified. Differences are often just files that changed *after* the backup ran — confirm the restore
   itself produced the expected files before treating a diff as a failure.
-- [ ] **Clean up** the scratch dir when done (`rm -rf`).
+- [ ] **Clean up** only the scratch directory you created, after confirming it is not a live path.
 - [ ] **A subset match only proves the pipeline works.** Put a monthly reminder/timer on a **full**
   restore into a throwaway VM, then boot the app — that's the only way to know your real RTO.
 

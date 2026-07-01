@@ -33,8 +33,14 @@ packages: [ufw, fail2ban, unattended-upgrades, auditd, chrony]
 runcmd:
   - ufw default deny incoming
   - ufw allow OpenSSH
-  - ufw --force enable
+  # Enable the firewall in a later, verified step unless this exact user-data has already been
+  # tested on the target provider and you have out-of-band console recovery.
 ```
+Do not add `ufw --force enable` to first-draft cloud-init. First boot is unattended, so a bad SSH key,
+wrong default user, custom SSH port, or provider image quirk can lock you out before you ever get a
+lifeline session. For fleets, test the full user-data on a disposable server with provider-console
+recovery, then promote the exact known-good definition.
+
 **Security (cloud-init's own hardening guidance):** never put plaintext passwords or secrets in
 `user-data`, `runcmd`, or `bootcmd` — user-data is readable via the cloud metadata service and may be
 logged in `/var/log/cloud-init*.log`. Use `hashed_passwd` (never plaintext), `ssh_authorized_keys` /

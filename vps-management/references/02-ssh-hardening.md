@@ -47,15 +47,13 @@ attack surface, and use only modern, non-broken cryptographic primitives.
 Crypto recommendations and CVEs move; a fixed algorithm list is correct only until it isn't.
 **Re-verify against current advisories rather than trusting any static snapshot.**
 
-- **Run OpenSSH ≥ 10.3.** The 10.3 release (April 2026) fixed a cluster of CVEs, including
-  **CVE-2026-35414 ("SplitSSHell", CVSS 8.1)** — a comma in an SSH certificate principal name could
-  be misparsed as a list separator, letting a holder of any valid CA-signed certificate authenticate
-  as **root**, with no log-based detection. This is critical if you use SSH certificate authorities
-  (see below). Also fixed: CVE-2026-35387 (mis-parsing of `PubkeyAcceptedAlgorithms` /
-  `HostbasedAcceptedAlgorithms` could cause *unintended* ECDSA algorithms to be used — so being
-  explicit about algorithms now matters more), CVE-2026-35385 (scp legacy-protocol setuid/setgid),
-  CVE-2026-35386 (command execution via shell metacharacters in a username, non-default `%` config),
-  and CVE-2026-35388 (proxy-mode multiplexing confirmation).
+- **Patch OpenSSH through your distro first.** Upstream OpenSSH 10.3 (April 2026) fixed several
+  security bugs. One notable issue, CVE-2026-35414, affected a narrower SSH-certificate path: user
+  CAs trusted through `authorized_keys` with `principals=""` restrictions, where a CA could issue
+  comma-containing principals. If you use SSH CAs, verify your installed package includes the 10.3
+  fix or a vendor backport, prefer `TrustedUserCAKeys`/`AuthorizedPrincipalsFile` for the main CA
+  path, and disallow commas in principal names. Also review distro advisories for the other OpenSSH
+  10.3-era fixes before deciding whether a scanner finding is real or already backported.
 - Earlier advisories still worth knowing: **CVE-2025-26465** (VerifyHostKeyDNS server impersonation),
   **CVE-2025-26466** (pre-auth memory/CPU DoS via `SSH2_MSG_PING`, mitigated by `PerSourcePenalties`),
   and **Terrapin / CVE-2023-48795** (prefix-truncation; mitigated by strict-kex, which modern OpenSSH
@@ -66,7 +64,8 @@ Crypto recommendations and CVEs move; a fixed algorithm list is correct only unt
 
 ```bash
 ssh -V                                  # note the version
-apt-get -y install --only-upgrade openssh-server   # ensure patched (RHEL: dnf upgrade openssh-server)
+apt-cache policy openssh-server         # Debian/Ubuntu: confirm the patched package/backport
+# RHEL family: rpm -q --changelog openssh-server | head -40
 ```
 
 ## How (Ubuntu/Debian primary)
@@ -75,19 +74,23 @@ apt-get -y install --only-upgrade openssh-server   # ensure patched (RHEL: dnf u
 Modern Ubuntu's `/etc/ssh/sshd_config` ends with `Include /etc/ssh/sshd_config.d/*.conf`, so drop a
 file there rather than editing the main config.
 
+Replace `deploy` with the account you have already proven can log in from a second session. Leave
+`PasswordAuthentication yes` until that key-only login succeeds; disable password auth in the
+separate step below.
+
 ```bash
+ADMIN_USER=deploy   # replace with the account you already proved can log in and sudo
 cp -a /etc/ssh/sshd_config "/etc/ssh/sshd_config.bak.$(date +%Y%m%d-%H%M%S)"
-cat >/etc/ssh/sshd_config.d/00-hardening.conf <<'EOF'
+cat >/etc/ssh/sshd_config.d/00-hardening.conf <<EOF
 # --- Authentication ---
 PermitRootLogin no
-PasswordAuthentication no
+PasswordAuthentication yes        # temporary: turn off only after key-only second login is proven
 PubkeyAuthentication yes
 KbdInteractiveAuthentication no
-AuthenticationMethods publickey
 MaxAuthTries 3
 MaxSessions 5
 LoginGraceTime 30
-AllowUsers deploy                 # restrict who may log in (or AllowGroups ssh-users)
+AllowUsers ${ADMIN_USER}
 
 # --- Reduce surface ---
 X11Forwarding no
@@ -105,6 +108,18 @@ ClientAliveCountMax 2
 PerSourceMaxStartups 4:30:20
 EOF
 ```
+
+After `sshd -t`, reload, and a second successful key-based login, disable password auth in a separate
+drop-in so rollback is one file:
+
+```bash
+cat >/etc/ssh/sshd_config.d/20-key-only.conf <<'EOF'
+PasswordAuthentication no
+AuthenticationMethods publickey
+EOF
+sshd -t && systemctl reload ssh
+```
+Open a new SSH session again and prove it succeeds by key before closing the original session.
 
 ### 2. Set modern cryptography — verify against the installed version first
 These lists reflect Mozilla "modern"/sshaudit guidance at time of writing. **Confirm with
