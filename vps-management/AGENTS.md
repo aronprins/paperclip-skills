@@ -39,7 +39,8 @@ Never run a mutating command until you know what you're on and whether it's live
   (`ss -tulnp`). If real services are serving traffic, treat the box as **production**: change one
   reversible thing at a time and verify between steps. When uncertain, assume production.
 - **Inventory what's already there** (users, web servers, databases, control panels) so you don't
-  clobber existing configuration. `scripts/preflight.sh` collects all of this in one pass.
+  clobber existing configuration. The **orientation checklist** in `references/agent-safety.md` lists
+  exactly what to gather, in order, with the fresh-vs-production risk call at the end.
 
 State your understanding back to the human ("This is Ubuntu 24.04, production, running Nginx + MySQL,
 3 human users") before proposing changes to a server you didn't just provision.
@@ -137,8 +138,9 @@ key-based and certificate-based auth over passwords wherever possible.
 
 ## 8. Verify hardening objectively
 
-Where the goal is "secure this server," measure it. Run a Lynis audit before and after
-(`scripts/lynis-score.sh`) and report the hardening index delta. A fresh install commonly scores in
+Where the goal is "secure this server," measure it. Run a Lynis audit before and after (follow the
+**Lynis before/after checklist** in `references/05-system-hardening.md`) and report the hardening
+index delta. A fresh install commonly scores in
 the 50s–60s; CIS Level 1-equivalent hardening typically lifts it into the 70s–80s. Treat ≥ 80 as the
 production target — but understand the score is a *relative* signal of config conformance, not a
 guarantee of security, and a minimal server can score higher simply by running less software.

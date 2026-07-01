@@ -119,8 +119,22 @@ ss -tulnp | grep LISTEN       # cross-check: which ports are actually listening?
 # From outside the host:
 nmap -Pn -p22,80,443,3306,5432 host    # only intended ports should be open; DBs should be filtered/closed
 ```
-Use `scripts/verify-firewall.sh` to automate the "default-deny in effect + only intended ports open"
-check across all three front-ends.
+**Verify checklist** — confirm "default-deny in effect + only intended ports open" against whichever
+front-end is active:
+
+- [ ] **ufw:** `ufw status verbose` shows `Status: active` and `Default: deny (incoming)`, and an SSH
+  allow rule (`22/tcp` or `OpenSSH`) is present. No default-deny ⇒ tighten with `ufw default deny
+  incoming`.
+- [ ] **firewalld:** `firewall-cmd --state` is `running`; `firewall-cmd --list-all` shows the intended
+  zone and `ssh` in its services list.
+- [ ] **nftables:** `nft list ruleset` shows the `input` chain with `policy drop` and an explicit
+  `dport 22`/`ssh` accept.
+- [ ] **No active host firewall found** (ufw inactive, firewalld stopped, no nft input policy)? The
+  host is relying on provider security groups only. Consider enabling one — but **allow SSH first**,
+  then enable (`AGENTS.md` §4).
+- [ ] **Cross-check the listeners:** every `0.0.0.0`/`[::]` entry in `ss -tulnp` should be a port you
+  *intend* to expose. Databases/caches (3306/5432/6379/11211) should listen on `127.0.0.1` only, not
+  `0.0.0.0` — bind them to localhost rather than opening a firewall port (`07`).
 
 ## How managed services handle it
 Forge configures a firewall that allows 22/80/443 by default and explicitly warns against removing

@@ -8,6 +8,33 @@ mitigation — all without locking you out.
 > validate with `sshd -t`, `reload` (don't `restart`), and confirm a second independent login before
 > you trust the change.
 
+## Apply checklist (anti-lockout)
+
+Work this order every time. The gate at step 3 is the one that most often prevents a lockout — do not
+skip it.
+
+- [ ] **Keep the current session open** for the entire procedure; it's your lifeline if the new config
+  is broken.
+- [ ] **Back up first:** `cp -a /etc/ssh/sshd_config "/etc/ssh/sshd_config.bak.$(date +%Y%m%d-%H%M%S)"`.
+- [ ] **Gate before disabling passwords:** confirm the account you'll keep in `AllowUsers` actually has
+  a usable key — `test -s "$(getent passwd <user> | cut -d: -f6)/.ssh/authorized_keys" && echo OK`.
+  If it's missing or empty, **leave `PasswordAuthentication` on**, add the key first, and only then
+  come back and disable passwords. Never emit `PasswordAuthentication no` for a user with no verified
+  key.
+- [ ] **Write settings as a drop-in**, not an edit to the shared file: `/etc/ssh/sshd_config.d/00-hardening.conf`
+  (the baseline in *How* §1) and, if desired, `10-crypto.conf` (§2). Include `AllowUsers <you>` and
+  make sure your own account is in it.
+- [ ] **If you changed the port**, open the new port in the firewall *first* (`03-firewall-network.md`)
+  — otherwise you can't reconnect.
+- [ ] **Validate:** `sshd -t` must pass (revert the drop-in and stop if it fails); `sshd -T | grep -Ei
+  'permitrootlogin|passwordauth|pubkeyauth|allowusers'` to confirm the values actually took.
+- [ ] **Reload, don't restart:** `systemctl reload ssh` (RHEL: `sshd`) — a reload keeps your current
+  connection alive even if the config is wrong.
+- [ ] **Prove a second login** in a *new* terminal, exercising the new settings (new port, key-only,
+  allowed user), **before** closing the first session.
+- [ ] **Know the rollback** before you apply: `rm /etc/ssh/sshd_config.d/00-hardening.conf &&
+  systemctl reload ssh` (or restore the timestamped backup).
+
 ## Why
 
 The authoritative configuration sources are the Mozilla OpenSSH guidelines and sshaudit.com's

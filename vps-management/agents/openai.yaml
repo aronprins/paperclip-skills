@@ -1,0 +1,4 @@
+interface:
+  display_name: "VPS Management"
+  short_description: "A conservative, standards-grounded runbook for configuring, securing, updating, and operating a Linux VPS over SSH — provisioning, SSH/firewall hardening, users and access, patching, web/app stack, monitoring, backups, intrusion detection, and incident response. It hands you the exact steps to run and verify by hand, one reversible change at a time, with an anti-lockout safety contract; it is not an executable toolkit."
+  default_prompt: "Read AGENTS.md and SKILL.md, run the orientation checklist to confirm distro and whether this box is fresh or production, then harden SSH and the firewall without locking yourself out."

@@ -56,7 +56,8 @@ lynis audit system                       # full audit; suggestions + hardening i
 grep -i 'hardening index' /var/log/lynis.log
 ```
 Run weekly via cron and track the hardening index over time — a sudden drop signals config drift or
-tampering. `scripts/lynis-score.sh` extracts the index for before/after comparison.
+tampering. The *Lynis before/after checklist* in `05-system-hardening.md` walks the extract-and-compare
+steps.
 
 ### 6. Log-based detection
 Feed auth failures, sudo usage, new-listener events, and web anomalies into your monitoring/alerting

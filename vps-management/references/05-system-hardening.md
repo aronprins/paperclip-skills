@@ -157,9 +157,30 @@ findmnt /tmp /dev/shm -o TARGET,OPTIONS
 aa-status || getenforce
 auditctl -s && auditctl -l | head
 aide --check | tail             # after baseline
-# Objective score before/after (see scripts/lynis-score.sh):
+# Objective score before/after (see the Lynis before/after checklist below):
 lynis audit system --quick && grep -i 'hardening index' /var/log/lynis.log
 ```
+
+## Lynis before/after checklist
+
+Where the job is "secure this server," measure it — capture a score *before* you remediate and again
+*after*, and report the delta. This is a read-only audit; it makes no changes.
+
+- [ ] **Install Lynis if absent** (distro-aware): Debian/Ubuntu `apt-get install -y lynis`; RHEL family
+  `dnf install -y epel-release && dnf install -y lynis`. Root gives the most complete result — without
+  it, some tests are skipped and the score is understated.
+- [ ] **Run the audit:** `lynis audit system --quick` (the `--quick` flag skips interactive pauses;
+  still read-only).
+- [ ] **Read the hardening index:** from `/var/log/lynis-report.dat`, `awk -F= '/hardening_index=/{print
+  $2}' | tail -1` (or `grep -i 'hardening index' /var/log/lynis.log`). Interpret it: **≥ 80** =
+  production target met; **65–79** = partially hardened, keep pushing (apply `02`/`03`/`05`/`06`);
+  **< 65** = near a fresh-install baseline.
+- [ ] **Label before vs after.** Record the score with a label (e.g. append `"$(date -u +%FT%TZ)
+  before <n>"` to a notes file) so the before/after comparison is unambiguous after remediation.
+- [ ] **Work the top suggestions:** the `suggestion[]=` lines in `/var/log/lynis-report.dat` are your
+  highest-impact next actions — address those, then re-run and confirm the index rose.
+- [ ] **Read the score as relative, not absolute** (`AGENTS.md` §8): it measures configuration
+  conformance, not real-world security, and a minimal server scores higher partly by running less.
 
 ## How managed services handle it
 The panels apply a pragmatic subset of this — automatic security updates, MAC left enforcing, sane
